@@ -10,7 +10,7 @@ router.post("/register", async (req, res) => {
   const newUser = new User({
     username: req.body.username,
     email: req.body.email,
-    password: CryptoJS.AES.encrypt(req.body.password, process.env.PASSWORD_SECRET).toString(),
+    password: CryptoJS.SHA3(req.body.password).toString(),
   });
 
   try {
@@ -27,21 +27,21 @@ router.post("/login", async (req, res) => {
   try {
     const user = await User.findOne(
       {
-          userName: req.body.user_name
+          username: req.body.username
       }
     );
-    !user && res.status(401).json("Wrong Username");
-
-    const hashedPassword = CryptoJS.AES.decrypt(
-      user.password,
-      process.env.PASSWORD_SECRET
-    );
-    const password = hashedPassword.toString(CryptoJS.enc.Utf8);
-
-    password !== req.body.password && res.status(401).json("Wrong Password");
-
-    res.status(200).json(user);
-
+    if(!user ) {
+      res.status(401).json("Wrong Credentials");
+    }else {
+      const hashedPassword = CryptoJS.SHA3(
+        req.body.password
+      );
+      if (user.password !== hashedPassword.toString()) {
+        res.status(401).json("Wrong Credentials");
+      }else{
+        res.status(200).json(user);
+      }
+    }
   } catch (err) {
     res.status(500).json(err);
   }
