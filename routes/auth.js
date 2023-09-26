@@ -2,6 +2,9 @@ const router = require("express").Router();
 const User = require("../models/User");
 // TO ENCRYPT / HASH PASSWORD
 const CryptoJS = require("crypto-js");
+// TO ASSIGN JWT TO PARTICULAR USERS / GIVE THEAM ACCESS
+const jwt = require("jsonwebtoken");
+
 
 
 // REGISTER
@@ -10,7 +13,10 @@ router.post("/register", async (req, res) => {
   const newUser = new User({
     username: req.body.username,
     email: req.body.email,
-    password: CryptoJS.SHA3(req.body.password).toString(),
+    password: CryptoJS.AES.encrypt(
+      req.body.password,
+      process.env.PASS_SEC
+    ).toString(),
   });
 
   try {
@@ -30,18 +36,33 @@ router.post("/login", async (req, res) => {
           username: req.body.username
       }
     );
-    if(!user ) {
-      res.status(401).json("Wrong Credentials");
-    }else {
-      const hashedPassword = CryptoJS.SHA3(
-        req.body.password
-      );
-      if (user.password !== hashedPassword.toString()) {
-        res.status(401).json("Wrong Credentials");
-      }else{
-        res.status(200).json(user);
-      }
-    }
+
+    if (!user) return res.status(401).json("Wrong Usernmame!");
+
+    const hashedPassword = CryptoJS.AES.decrypt(
+      user.password,
+      process.env.PASS_SEC
+  );
+
+
+  const originalPassword = hashedPassword.toString(CryptoJS.enc.Utf8);
+
+  const inputPassword = req.body.password;
+
+  if (originalPassword != inputPassword) return res.status(401).json("Wrong Password");
+
+  const accessToken = jwt.sign(
+    {
+      id: user._id,
+      isAdmin: user.isAdmin,
+    },
+    process.env.JWT_SEC,
+    {expiresIn: "3d"}
+  );
+
+  const { password, ...others } = user._doc;
+  res.status(200).json({...others, accessToken});
+
   } catch (err) {
     res.status(500).json(err);
   }
